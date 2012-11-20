@@ -1,14 +1,17 @@
 bigmem_blat.pl
 =============
-
 Runs blat in parallel on a multi-core machine.
 
-* interval_mask.pl - Takes fasta file and interval file as inputs.
+interval_mask.pl
+=============
+Takes fasta file and interval file as inputs.
 Masks intervals in fasta file as upper or lower case
   * fasta_extract_lc.pl
   * fasta_extract_uc.pl
 
-* blast_separate_taxa.pl - Takes two sets of blast tabular results.
+blast_separate_taxa.pl
+=============
+Takes two sets of blast tabular results.
 Separates contigs into two separate files, too close to call (min bit
 score difference) into a third file
 
