@@ -17,6 +17,7 @@ score difference) into a third file
 
 blast_taxonomy_report.pl
 =
+no description
 
 blastm8_filter.pl
 =
@@ -25,6 +26,7 @@ at 70% completeness...)
 
 bowtie2_extract_reads_mapped_to_specific_contigs.pl
 =
+no description
 
 clc_assembly_table_a_chrontig_st_en.pl
 =
@@ -37,9 +39,11 @@ use instead of contig_stats.pl
 
 fastaqual_multiline_to_singleline.pl
 =
+no description
 
 fastaqual_select.pl
 =
+no description
 
 fastx_filterheader.pl
 =
@@ -64,6 +68,7 @@ Check exact description
 
 gff_remove_orphans.pl
 =
+no description
 
 gff3_select.pl
 =
@@ -90,9 +95,11 @@ Merges sequence intervals (reorders so that st < en). Starts are 1-based not 0-b
 
 taxid_parents_list.pl
 =
+no description
 
 taxid_children.pl
 =
+no description
 
 taxid2gid.pl
 =
