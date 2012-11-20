@@ -1,4 +1,7 @@
-* bigmem_blat.pl - Runs blat in parallel on a multi-core machine.
+bigmem_blat.pl
+=============
+
+Runs blat in parallel on a multi-core machine.
 
 * interval_mask.pl - Takes fasta file and interval file as inputs.
 Masks intervals in fasta file as upper or lower case
