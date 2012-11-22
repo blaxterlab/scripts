@@ -1,0 +1,168 @@
+#!/usr/bin/perl
+
+use Cwd 'abs_path';
+use strict;
+use warnings;
+use Getopt::Long qw(:config pass_through no_auto_abbrev);
+
+my ($infile, $dbname, $num_fasta, $outfile, $threads, $allocation, $time, $num_jobs, $outfmt, $F, $keep) = ("", "", "", "", "", "", "47:00:00","","","",0);
+GetOptions (
+  "i|query:s" => \$infile,
+  "num_fasta:i" => \$num_fasta,
+  "o|out:s" => \$outfile,
+  "a|num_threads:i" => \$threads,
+  "project|allocation:s" => \$allocation,
+  "time:s" => \$time,
+  "num_jobs:i" => \$num_jobs,
+  "outfmt:s" => \$outfmt,
+  "F:s" => \$F,
+  "d|db:s" => \$dbname,
+  "keep" => \$keep,
+);
+
+my $usage= "  Usage: Prefix your regular blast command line by sge_blast\n" .
+	"  Example: sge_blast blastall -p blastn -i query.fa -d ~/blast.db -e 1e-3 -m 8 -o query.out\n" .
+	"  Example: sge_blast blastn -query query.fa -db ~/blast.db -evalue 1e-3 -outfmt 6 -out query.out\n" .
+	"  Note: you have to specify the -d or -db path explicitly, i.e. ~/blast.db, not ../blast.db\n" .
+	"  Use -num_jobs to specify number of jobs to split into. Default 20\n" .
+	"  Use -num_fasta to specify number of fasta sequences per split job.\n  Default (depends on num_jobs, num_jobs overrides num_fasta)\n" .
+	"  Use -time hh:mm:ss to specify time limit for each job. Default 47:00:00, i.e. 47 hours\n" .
+	"  Use -a or -num_threads to allocate extra cores/memory slots (each mem slot is 2GB) per job. Default 1\n" .
+	"  Use -keep if you want to keep the temporary directory after the job finishes\n" .
+	"  Use -allocation or -project to specify a different ECDF project allocation than your default\n";
+
+$outfile =~ s'.*/''; $outfile = "tmp" unless $outfile;
+
+# check dbname absolute path exists
+my $dbpath = abs_path($dbname);
+if (not (-f "$dbpath.nal" or -f "$dbpath.pal" or -f "$dbpath.nin" or -f "$dbpath.pin"))
+{
+  if (-f $dbpath)
+  {
+    my $residues = substr(`grep -v ">" $dbpath`,0,10000);
+    my $p = ($residues =~ tr/atgcnuATGCNU/atgcnuATGCNU/) > 5000 ? "F" : "T";
+    `formatdb -p $p -i $dbpath -o T`;
+  }
+  else {
+    die "Database $dbpath not found\n$usage";
+  }
+} 
+
+my $qsub_options = "-cwd -R y";
+$qsub_options .= " -pe memory-2G $threads" if $threads;
+$qsub_options .= " -P $allocation" if $allocation;
+$qsub_options .= " -l h_rt=$time" if $time;
+
+my $command = join(' ',@ARGV);
+$command .= " -outfmt \"$outfmt\"" if $outfmt; #put quotes around -outfmt options
+$command .= " -F \"$F\"" if $F; #put quotes around -F options
+
+die $usage unless $command =~ /^(blast|tblast|mega)/;
+
+my $tmp_dir = "$outfile\_" . int(rand(10000));
+mkdir($tmp_dir) or die "Could not create tmp directory in current location.\n"
+	." Please run from a location that you can write to.\n$usage";
+
+(my $count_sequences = `cp $infile $tmp_dir/input.fasta; grep -c "^>" $tmp_dir/input.fasta`) =~ s/.*\b(\d+)\b.*/$1/;
+
+unless ($count_sequences) {
+  `rm -rf $tmp_dir`;
+  die $usage;
+}
+
+$num_jobs = 20 unless $num_jobs or $num_fasta;
+if ($num_jobs) { $num_fasta = int($count_sequences/$num_jobs) + 1 }
+
+#------------------------------------------------------------------------------
+# Split multi-fasta file into many multi fasta files with $num_fasta sequences
+# and store the result in a tmp directory under the current working directory
+#------------------------------------------------------------------------------
+
+open INFILE, "<$tmp_dir/input.fasta" or die "Could not read $tmp_dir/input.fasta\n$usage";
+chdir($tmp_dir) or die $!;
+my $count = 0;
+my $filenumber = 0;
+
+print STDERR "Splitting input fasta into chunks in $tmp_dir/";
+while (<INFILE>) {
+	my $line = $_;
+	if ($line =~ /^>/) {
+		if ($count % $num_fasta == 0) {
+			open OUTFILE, ">" . ++$filenumber . ".fasta"
+				or die "Unable to open split fasta file\n$usage";
+			print STDERR " $filenumber.fasta";
+		}
+		$count++;
+	}
+	print OUTFILE $line unless $line =~ /^\s*$/;
+}
+close INFILE; unlink "input.fasta"; print STDERR "\n";
+
+#------------------------------------------------------------------------------
+# create qsub shell script in tmp_dir
+#------------------------------------------------------------------------------
+
+open  SHFILE,">$outfile.sh" or die $!;
+print SHFILE <<SH;
+#!/bin/bash
+# blast command = $command
+# input file    = $infile
+# database path = $dbpath
+# num of jobs   = $filenumber
+#\$ $qsub_options
+. /etc/profile
+module load blast/ncbi
+SH
+
+#module add blast/ncbi/latest --> this is replaced by module load blast/ncbi
+
+$threads = 1 unless $threads;
+
+if ($command =~ /^blastall/ or $command =~ /^megablast/)
+{ print SHFILE "$command -i \$SGE_TASK_ID.fasta -o \$SGE_TASK_ID.out -a $threads -d $dbpath" }
+else
+{ print SHFILE "$command -query \$SGE_TASK_ID.fasta -out \$SGE_TASK_ID.out -num_threads $threads -db $dbpath" }
+print SHFILE "\ntouch \$SGE_TASK_ID.done";
+close SHFILE;
+
+#------------------------------------------------------------------------------
+# qsub shell script
+#------------------------------------------------------------------------------
+
+my $qsub_output = `qsub -t 1-$filenumber $outfile.sh`;
+my $jobid = "";
+print STDERR "\n  $qsub_output\n";
+$qsub_output =~ /Your job-array (\d+)\./ and $jobid = $1;
+print STDERR "  This script will remain running till the job finishes\n";
+print STDERR "  To monitor your job, use 'qstat -u UUN' in another shell.\n";
+print STDERR "  To delete the job, 'qdel $jobid'.\n";
+print STDERR "  If the script fails, temp results will be saved as multiple .out files in $tmp_dir/.\n";
+print STDERR "  Results will be saved as multiple .out files in $tmp_dir/.\n";
+print STDERR "  For debugging, check the split *.fasta files and $outfile script that were created for this job in $tmp_dir/.\n";
+print STDERR "  STDERR outputs are stored in $tmp_dir/$outfile.sh.e.$jobid.* files\n";
+print STDERR "  After debugging, you should delete $tmp_dir/ if you are going to rerun the job.\n\n";
+
+#------------------------------------------------------------------------------
+# loops to check that all .out files are created (cat + gzip them)
+# if not, then check if job has finished
+#------------------------------------------------------------------------------
+
+while (1)
+{
+  sleep 3;
+  if (`ls -1 *.done 2>/dev/null | wc -l` == $filenumber) {
+    sleep 10;
+    `cd ..; cat $tmp_dir/{1..$filenumber}.out | gzip >$outfile.gz`;
+    system ("rm -rf $tmp_dir") unless $keep;
+    print STDERR "  Job completed. Gzipped results in $outfile.gz\n\n";
+    `qdel -f $jobid`;
+    exit 0;
+  }
+  else {
+    if (`qstat -j $jobid 2>&1` =~ /not exist/ or not $jobid) {
+      print STDERR "  Job not on queue any more\n\n";
+      exit 1;
+    }
+  }
+}
+
