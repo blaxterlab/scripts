@@ -1,0 +1,10 @@
+#!/bin/bash
+
+sge_blast tblastn -db $1 -query /exports/work/biology_ieb_mblaxter/software/cegma/cegma/data/kogs.fa \
+  -word_size 5 -num_descriptions 5 -num_alignments 5 -seg yes \
+  -lcase_masking -outfmt "7 sseqid sstart send sframe bitscore qseqid" -out genome.tblastn -num_jobs 10
+
+zcat genome.tblastn.gz | grep -v "^#" | perl -F"\t" -lane '
+  ($F[1],$F[2]) = ($F[2],$F[1]) if $F[3] < 0;
+  print "$F[0]\tTBLASTN\thsp\t$F[1]\t$F[2]\t$F[4]\t" . ($F[3] < 0 ?"-":"+") . "\t" . abs($F[3]) . "\t$F[5]"
+' >genome.tblastn.gff
