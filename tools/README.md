@@ -1,3 +1,8 @@
+bam2fastx.pl
+=
+
+Extracts FASTA or FASTQ files from a bam file, with options to get output as pairs, singles or both
+
 bigmem_blat.pl
 =
 Runs blat in parallel on a multi-core machine.
