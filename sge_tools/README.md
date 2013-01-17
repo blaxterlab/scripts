@@ -26,6 +26,7 @@ The following tools run one component of GATK or Picard. All hardcode the number
 ### Others
 
 **sge_blast** - Splits FASTA files and runs blast jobs as an array  
+**sge_iprscan** - Splits FASTA files and runs InterProScan 5 jobs as an array  
 **sge_stampy** - run Stampy as a job array, splitting the input by feeding $SGE_TASK_ID to --processpart. Convert SAM output to BAM afterwards using **samtools view**.
 
 ## Pipelines
