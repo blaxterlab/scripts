@@ -1,0 +1,90 @@
+#!/exports/applications/apps/SL6/python/3.3.0/bin/python3
+import sys, os, time, shutil, subprocess, glob
+from optparse import OptionParser
+
+parser = OptionParser()
+parser.add_option("-s", "--seqs_per_task", dest="seqs_per_task", help="number of input sequences to be analysed in each task. Make sure this is small enough that each task will finish within the SGE hard limit. [default: %default]", default=20)
+parser.add_option("-i", "--input_file", dest="input_filename", help="input file of FASTA sequences to be analyzed. [default: %default]")
+parser.add_option("-f", "--output_format", dest="output_format", help="output format for InterProScan (GFF3 / XML) [default: %default]", default='GFF3')
+parser.add_option("-o", "--output_file", dest="output_filename", help="output filename [default: %default]", default='output.gff3')
+parser.add_option("-t", "--type", dest="type", help="input sequence type (n / p) [default: %default]", default='n')
+parser.add_option("-a", "--appl", dest="applications", help="applications to run, separated by commas (see http://code.google.com/p/interproscan/wiki/RC4HowToRun) [default: %default]", default='ProDom-2006.1,PfamA-26.0,TIGRFAM-12.0,SMART-6.2,Gene3d-3.3.0,Coils-2.2,Phobius-1.01')
+parser.add_option("--nosubmit", dest="nosubmit", help="do NOT submit the tasks using qsub (just create the temporary directory and generate the submission script) ", action="store_true")
+parser.add_option("--nocleanup", dest="nocleanup", help="do NOT merge the output files and delete the temporary directory after the job has finished. Probably useful if you are using an output format that cannot be combined by simple concatenation (e.g. XML) and you want to handle merging the output files yourself.", action="store_true")
+parser.add_option("--nogzip", dest="nogzip", help="do NOT gzip the merged output files", action="store_true")
+
+
+(options, args) = parser.parse_args()
+if options.input_filename == None:
+                sys.exit('for usage run sge_iprscan -h')
+
+
+#make a new temp directory, copy the input file into it, and chdir into it
+temp_dir_name =str(int(time.time()))
+os.mkdir(temp_dir_name)
+shutil.copy(options.input_filename, temp_dir_name)
+os.chdir(temp_dir_name)
+
+current_sequence_count = 0
+current_file_number = 0
+current_output_file = None
+for line in open(options.input_filename).read():
+    if line.startswith('>'):
+        if current_sequence_count % options.seqs_per_task == 0:
+            current_file_number = current_file_number + 1
+            current_output_file = open(str(current_file_number) + '.fasta', 'wt')
+            print(current_file_number)
+        current_sequence_count += 1
+    current_output_file.write(line)
+
+current_output_file.close()
+qsub_file = open('iprscan.sh', 'wt')
+qsub_file.write("""#!/bin/bash
+#$ -cwd
+#$ -pe memory-2G 2
+#$ -N iprscan_{temp_dir_name}
+. /etc/profile.d/modules.sh
+module load java
+/exports/work/biology_ieb_mblaxter/software/iprscan_5_sge/interproscan-5-RC4/interproscan.sh -f {format} -i {path}/$SGE_TASK_ID.fasta -t {type} -o {path}/$SGE_TASK_ID.out -dp -appl {applications}
+touch $SGE_TASK_ID.done
+""".format(
+        path=os.getcwd(), 
+        temp_dir_name=temp_dir_name,
+        format = options.output_format,
+        type = options.type,
+        applications = options.applications))
+qsub_file.close()
+qsub_string = "qsub -t 1-{split_file_count} iprscan.sh".format(split_file_count = current_file_number)
+
+
+if options.nosubmit:
+        print("temporary files are in " + temp_dir_name)
+        print("submit with :")
+        print(qsub_string)
+else:
+        print('submitting with: ' + qsub_string)
+        qsub_output = subprocess.check_output(qsub_string.split(' ')).decode("utf-8")
+        print('qsub output: ' + qsub_output)
+
+        while True:
+                time.sleep(3)
+                done_count = len(glob.glob("*.done"))
+                sys.stdout.write("\rcompleted {done_count} jobs out of {total_count}".format(done_count=done_count, total_count = current_file_number))
+                if done_count == current_file_number:
+                        print('')
+                        time.sleep(3)
+                        if options.nocleanup:
+                                print("all jobs done, .out files are in directory :" + temp_dir_name)
+                                sys.exit()
+                        else:
+                                if options.nogzip:
+                                        subprocess.check_call(['bash', '-c', 'cat *.out >../{output_filename}'.format(path = temp_dir_name, output_filename=options.output_filename)])
+                                else:
+                                        cat_string = 'cat *.out | gzip >../{output_filename}'.format(path = temp_dir_name, output_filename=options.output_filename)
+                                        #print(cat_string)
+                                        subprocess.check_call(['bash', '-c', cat_string])
+                                if not options.nocleanup:
+                                        os.chdir('../')
+                                        shutil.rmtree(temp_dir_name)
+
+                                sys.exit()
