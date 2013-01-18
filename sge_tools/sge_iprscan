@@ -16,7 +16,7 @@ parser.add_option("--nogzip", dest="nogzip", help="do NOT gzip the merged output
 
 (options, args) = parser.parse_args()
 if options.input_filename == None:
-                sys.exit('for usage run sge_iprscan -h')
+		sys.exit('for usage run sge_iprscan -h')
 
 
 #make a new temp directory, copy the input file into it, and chdir into it
@@ -30,7 +30,7 @@ current_file_number = 0
 current_output_file = None
 for line in open(options.input_filename).read():
     if line.startswith('>'):
-        if current_sequence_count % options.seqs_per_task == 0:
+        if current_sequence_count % int(options.seqs_per_task) == 0:
             current_file_number = current_file_number + 1
             current_output_file = open(str(current_file_number) + '.fasta', 'wt')
             print(current_file_number)
@@ -45,46 +45,50 @@ qsub_file.write("""#!/bin/bash
 #$ -N iprscan_{temp_dir_name}
 . /etc/profile.d/modules.sh
 module load java
-/exports/work/biology_ieb_mblaxter/software/iprscan_5_sge/interproscan-5-RC4/interproscan.sh -f {format} -i {path}/$SGE_TASK_ID.fasta -t {type} -o {path}/$SGE_TASK_ID.out -dp -appl {applications}
+/exports/work/biology_ieb_mblaxter/software/iprscan_5_sge/interproscan-5-RC4/interproscan.sh -f {format} -i {path}/$SGE_TASK_ID.fasta -t {type} -o {path}/$SGE_TASK_ID.out -dp -T {path} -appl {applications}
 touch $SGE_TASK_ID.done
 """.format(
-        path=os.getcwd(), 
-        temp_dir_name=temp_dir_name,
-        format = options.output_format,
-        type = options.type,
-        applications = options.applications))
+	path=os.getcwd(), 
+	temp_dir_name=temp_dir_name,
+	format = options.output_format,
+	type = options.type,
+	applications = options.applications))
 qsub_file.close()
 qsub_string = "qsub -t 1-{split_file_count} iprscan.sh".format(split_file_count = current_file_number)
 
 
 if options.nosubmit:
-        print("temporary files are in " + temp_dir_name)
-        print("submit with :")
-        print(qsub_string)
+	print("temporary files are in " + temp_dir_name)
+	print("submit with :")
+	print(qsub_string)
 else:
-        print('submitting with: ' + qsub_string)
-        qsub_output = subprocess.check_output(qsub_string.split(' ')).decode("utf-8")
-        print('qsub output: ' + qsub_output)
+	print('submitting with: ' + qsub_string)
+	qsub_output = subprocess.check_output(qsub_string.split(' ')).decode("utf-8")
+	print('qsub output: ' + qsub_output)
 
-        while True:
-                time.sleep(3)
-                done_count = len(glob.glob("*.done"))
-                sys.stdout.write("\rcompleted {done_count} jobs out of {total_count}".format(done_count=done_count, total_count = current_file_number))
-                if done_count == current_file_number:
-                        print('')
-                        time.sleep(3)
-                        if options.nocleanup:
-                                print("all jobs done, .out files are in directory :" + temp_dir_name)
-                                sys.exit()
-                        else:
-                                if options.nogzip:
-                                        subprocess.check_call(['bash', '-c', 'cat *.out >../{output_filename}'.format(path = temp_dir_name, output_filename=options.output_filename)])
-                                else:
-                                        cat_string = 'cat *.out | gzip >../{output_filename}'.format(path = temp_dir_name, output_filename=options.output_filename)
-                                        #print(cat_string)
-                                        subprocess.check_call(['bash', '-c', cat_string])
-                                if not options.nocleanup:
-                                        os.chdir('../')
-                                        shutil.rmtree(temp_dir_name)
+	while True:
+		time.sleep(3)
+		done_count = len(glob.glob("*.done"))
+		sys.stdout.write("\rcompleted {done_count} jobs out of {total_count}".format(done_count=done_count, total_count = current_file_number))
+		if done_count == current_file_number:
+			print('')
+			time.sleep(3)
+			if options.nocleanup:
+				print("all jobs done, .out files are in directory :" + temp_dir_name)
+				sys.exit()
+			else:
+				if options.nogzip:
+					subprocess.check_call(['bash', '-c', 'cat *.out >../{output_filename}'.format(path = temp_dir_name, output_filename=options.output_filename)])
+				else:
+					cat_string = 'cat *.out | gzip >../{output_filename}'.format(path = temp_dir_name, output_filename=options.output_filename)
+					#print(cat_string)
+					subprocess.check_call(['bash', '-c', cat_string])
+				if not options.nocleanup:
+					os.chdir('../')
+					shutil.rmtree(temp_dir_name)
 
-                                sys.exit()
+				sys.exit()
+
+
+
+		
