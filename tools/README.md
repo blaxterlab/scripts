@@ -111,3 +111,7 @@ taxid2gid.pl
 For each taxon id, get all the gid (genbank id) from the gi_taxid dmp files. Look up
 https://www.wiki.ed.ac.uk/display/BlaxterLab/Local+blast+against+subsets+of+NCBI+databases+based+on+taxid
 for how to use
+
+awk_stats.sh
+=
+Generates basic stats for a list of numbers that can be piped in, e.g. less file.txt | awk_stats.sh -
