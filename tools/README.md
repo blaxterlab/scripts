@@ -114,4 +114,4 @@ for how to use
 
 awk_stats.sh
 =
-Generates basic stats for a list of numbers that can be piped in, e.g. less file.txt | awk_stats.sh -
+Generates basic stats for a list of numbers that can be piped in, e.g. `less file.txt | awk_stats.sh -`
