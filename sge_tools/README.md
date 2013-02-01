@@ -8,31 +8,32 @@ These tools run one tool only in a very crude fashion.
 
 ### BWA/Samtools tools
 
-sge_bwa_aln_se.sh - run bwa aln on single end data
-sge_bwa_sampe.sh - run bwa sampe
-sge_bwa_samse.sh - run bwa samse
-sge_flagstat.sh - run samtools flagstat
+**sge_bwa_aln_se.sh** - run bwa aln on single end data  
+**sge_bwa_sampe.sh** - run bwa sampe  
+**sge_bwa_samse.sh** - run bwa samse  
+**sge_flagstat.sh** - run samtools flagstat
 
 ### GATK/Picard tools
 
 The following tools run one component of GATK or Picard. All hardcode the number of slots requested and the amount of memory allocated. Both of these values should be turned into parameters as these values often vary.
 
-sge_CombineVariants.sh
-sge_MarkDuplicates.sh
-sge_PicardMetrics.sh
-sge_SortSam.sh
-sge_UnifiedGenotyper.sh
+**sge_CombineVariants.sh**  
+**sge_MarkDuplicates.sh**  
+**sge_PicardMetrics.sh**  
+**sge_SortSam.sh**    
+**sge_UnifiedGenotyper.sh**  
 
 ### Others
 
-sge_blast - Splits FASTA files and runs blast jobs as an array
-sge_stampy - run Stampy as a job array, splitting the input by feeding $SGE_TASK_ID to --processpart. Convert SAM output to BAM afterwards using `samtools view`.
+**sge_blast** - Splits FASTA files and runs blast jobs as an array  
+**sge_iprscan** - Splits FASTA files and runs InterProScan 5 jobs as an array  
+**sge_stampy** - run Stampy as a job array, splitting the input by feeding $SGE_TASK_ID to --processpart. Convert SAM output to BAM afterwards using **samtools view**.
 
 ## Pipelines
 
 ### sge_cegma
 
-`sge_cegma` generates BLAST output for CEGMA with `sge_blast` and then runs CEGMA on this BLAST output. The script `sge_cegma_blast` only runs the BLAST, if CEGMA itself is to be run on a local machine. (It would be more elegant to add an option to the `sge_cegma` script to end after the BLAST.)
+**sge_cegma** generates BLAST output for CEGMA with **sge_blast** and then runs CEGMA on this BLAST output. The script **sge_cegma_blast** only runs the BLAST, if CEGMA itself is to be run on a local machine. (It would be more elegant to add an option to the *sge_cegma* script to end after the BLAST.)
 
 ### sge_bwa_se_ryegrass
 
