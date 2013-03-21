@@ -51,14 +51,14 @@ complexes and any contig not involved.
 
 =cut
 
-#8 args
+#7 args
 #1. -t target fasta file
 #2. -q query fasta file
 #3. -p psl BLAT output
-#4. -r 0 or 1 depending on target vs query in blast
-#5. -o overlap length (max 10 due to possibility of small blat alignments allowing incorrect associations)
-#6. -l length of alignment
-#7. -c number of processors
+#4. -o overlap length (max 10 due to possibility of small blat alignments allowing incorrect associations)
+#5. -l length of alignment
+#6. -c number of processors
+#7. -m mismatch score
 
 my %EST_hash=();
 my $target;
@@ -864,6 +864,3 @@ print FOUT $jg_header."\n$jg_seq\n";
 `mv $dir/joined_groups_sl.fa $dir/joined_groups.fa`;
 `cat $dir/tmp.contigs.fa $dir/merged_contigs/* $dir/joined_groups.fa > $dir/contigs.fa`;
 `rm $dir/tmp.contigs.fa`;
-
-
-
