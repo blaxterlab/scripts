@@ -3,7 +3,8 @@ import sys, os, time, shutil, subprocess, glob
 from optparse import OptionParser
 
 parser = OptionParser()
-parser.add_option("-s", "--seqs_per_task", dest="seqs_per_task", help="number of input sequences to be analysed in each task. Make sure this is small enough that each task will finish within the SGE hard limit. [default: %default]", default=20)
+parser.add_option("-s", "--seqs_per_task", dest="seqs_per_task", help="number of input sequences to be analysed in each task. Make sure this is small enough that each task will finish within the SGE hard limit time and not use more memory than the slots you have asked for (see the --slots argument). [default: %default]", default=20)
+parser.add_option("--slots", dest="slots", help="number of 2G memory slots to be used by each job. Choose wisely! Too low, and Java will terminate without notice. Too high, and your jobs will sit on the queue for a long time.", default=2)
 parser.add_option("-i", "--input_file", dest="input_filename", help="input file of FASTA sequences to be analyzed. [default: %default]")
 parser.add_option("-f", "--output_format", dest="output_format", help="output format for InterProScan (GFF3 / XML) [default: %default]", default='GFF3')
 parser.add_option("-o", "--output_file", dest="output_filename", help="output filename [default: %default]", default='output.gff3')
@@ -41,18 +42,19 @@ current_output_file.close()
 qsub_file = open('iprscan.sh', 'wt')
 qsub_file.write("""#!/bin/bash
 #$ -cwd
-#$ -pe memory-2G 2
+#$ -pe memory-2G {slots}
 #$ -N iprscan_{temp_dir_name}
 . /etc/profile.d/modules.sh
 module load java
-/exports/work/biology_ieb_mblaxter/software/iprscan_5_sge/interproscan-5-RC4/interproscan.sh -f {format} -i {path}/$SGE_TASK_ID.fasta -t {type} -o {path}/$SGE_TASK_ID.out -dp -T {path} -appl {applications}
+/exports/work/biology_ieb_mblaxter/software/iprscan_5_sge/interproscan-5.3-46.0/interproscan.sh -f {format} -i {path}/$SGE_TASK_ID.fasta -t {type} -o {path}/$SGE_TASK_ID.out -dp -T {path} -appl {applications}
 touch $SGE_TASK_ID.done
 """.format(
-	path=os.getcwd(), 
+	path=os.getcwd(),
 	temp_dir_name=temp_dir_name,
 	format = options.output_format,
 	type = options.type,
-	applications = options.applications))
+	applications = options.applications,
+    slots = options.slots))
 qsub_file.close()
 qsub_string = "qsub -t 1-{split_file_count} iprscan.sh".format(split_file_count = current_file_number)
 
@@ -91,4 +93,4 @@ else:
 
 
 
-		
+
