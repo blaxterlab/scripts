@@ -51,14 +51,14 @@ complexes and any contig not involved.
 
 =cut
 
-#8 args
+#7 args
 #1. -t target fasta file
 #2. -q query fasta file
 #3. -p psl BLAT output
-#4. -r 0 or 1 depending on target vs query in blast
-#5. -o overlap length (max 10 due to possibility of small blat alignments allowing incorrect associations)
-#6. -l length of alignment
-#7. -c number of processors
+#4. -o overlap length (max 10 due to possibility of small blat alignments allowing incorrect associations)
+#5. -l length of alignment
+#6. -c number of processors
+#7. -m mismatch score
 
 my %EST_hash=();
 my $target;
@@ -74,6 +74,7 @@ my $cores = 1;
 my $cov_length = 90;
 my $joiner = 'cap3';
 my $mismatch = 90;
+my $max_cap = 100000000;
 
 GetOptions (
 	"target=s" => \$target_file,
@@ -83,10 +84,11 @@ GetOptions (
 	"cores=s" =>\$cores,
 	"length=s" =>\$cov_length,
 	"mismatch=s" =>\$mismatch,
+	"a=s" =>\$max_cap,
 );
 
 if ($target_file eq "" || $query_file eq "" || $psl eq "" || $overlap >20){
-	die("SCUBAT.pl \n-t contigs file \n-q transcripts file \n-p blat psl output \n-o overlap length (default 10, max 20)\n-c number of processors (default 1)\n-l min \% coverage length of transcript (default 90)\n-m mismatch score (default 0.92)\n");
+	die("SCUBAT.pl \n-t contigs file \n-q transcripts file \n-p blat psl output \n-o overlap length (default 10, max 20)\n-c number of processors (default 1)\n-l min \% coverage length of transcript (default 90)\n-m mismatch score (default 0.92)\n-a max size of file for cap3 (default 100000000)\n");
 } 
 
 
@@ -104,18 +106,20 @@ my $cov_length_div = $cov_length / 100;
 
 ####################################################################################################################################################
 
-print "Getting target lengths...\n";
-print S "Getting target lengths...\n";
+print "Getting target lengths...";
+print S "Getting target lengths...";
 open C, $target_file or die;
 my $header=""; my $len = "";
 my %target_length;
 my %target_seq;
+my $count_seq = 0;
 while(<C>){
 	chomp;
 	#forward slashes and pipes in seq names were giving problems later on
 	$_ =~ s/\//_/g;
 	$_ =~ s/\|/_/g;
 	if ($_ =~ m/^>.*/){
+		$count_seq++;
 		if ($header ne ""){
 			$target_length{$header}=length($len);
 			$target_seq{$header}=$len;
@@ -138,13 +142,15 @@ open TS,">$dir/target_seqs.fa";
 for (sort keys %target_seq){
 	print TS "$_\n$target_seq{$_}\n";
 }
+print "$count_seq sequences\n";
+print S "$count_seq sequences\n";
 #open TD,">$dir/target_dump.txt";
 #print TD Dumper( \%target_seq );
-
+$count_seq = 0;
 ####################################################################################################################################################
 
-print "Getting query lengths...\n";
-print S "Getting query lengths...\n";
+print "Getting query lengths...";
+print S "Getting query lengths...";
 open Q, $query_file or die;
 $header=""; 
 $len = "";
@@ -156,6 +162,7 @@ while(<Q>){
 	$_ =~ s/\//_/g;	
 	$_ =~ s/\|/_/g;
 	if ($_ =~ m/^>(.*?)/){
+		$count_seq++;
 		if ($header ne ""){
 			$query_length{$header}=length($len);
 			$query_seq{$header}=$len;
@@ -180,7 +187,8 @@ for (sort keys %query_seq){
 }
 #open QD,">$dir/query_seq.txt";
 #print QD Dumper( \%query_seq );
-
+print "$count_seq sequences\n";
+print S "$count_seq sequences\n";
 ####################################################################################################################################################
 
 print "Reading blat output...\n";
@@ -694,10 +702,14 @@ for my $k1 (sort {$a<=>$b} keys %join_groups_final){
 		#`cat $dir/join/$k1/*.fa > $dir/join/$k1/$k1.cat`;
 		system("cat $dir/join/$k1/*.fa > $dir/join/$k1/$k1.cat");
 		#print CAP "cat $dir/join/$k1/*.fa > $dir/join/$k1/$k1.cat\n";
-		
-		print JOIN "$joiner $dir/join/$k1/$k1.cat > $dir/join/$k1/$k1.log 2> $dir/join/$k1/$k1.err\n";
-		#print CAP "phrap $dir/join/$k1/$k1.cat > $dir/join/$k1/$k1.log\n";
-		
+		#check file size isn't too big
+		my $size_check = -s "$dir/join/$k1/$k1.cat";
+		if ($size_check < $max_cap){
+			print JOIN "$joiner $dir/join/$k1/$k1.cat > $dir/join/$k1/$k1.log 2> $dir/join/$k1/$k1.err\n";
+			#print CAP "phrap $dir/join/$k1/$k1.cat > $dir/join/$k1/$k1.log\n";
+		}else{
+			print "$dir/join/$k1/$k1.cat is too big - $size_check\n";
+		}
 		
 		#print CAP "rm $dir/join/$k1/$k1.cat\n";
 	}else{
@@ -741,7 +753,8 @@ if ($joiner eq 'cap3'){
 		if ((keys %{$join_groups_final{$k1}}) > 1){
 			my $find_largest_merge="";
 			my $find_largest_merge_count=0;
-			if (-s "$dir/join/$k1/$k1.cat.cap.singlets"){
+			#check for assemblies that failed
+			unless (-s "$dir/join/$k1/$k1.cat.cap.contigs"){
 				#find the merge with the most contigs
 				print CAPCHECK "$k1 failed\n";
 				for my $k2 (keys %{$join_groups_final{$k1}}){
@@ -864,6 +877,3 @@ print FOUT $jg_header."\n$jg_seq\n";
 `mv $dir/joined_groups_sl.fa $dir/joined_groups.fa`;
 `cat $dir/tmp.contigs.fa $dir/merged_contigs/* $dir/joined_groups.fa > $dir/contigs.fa`;
 `rm $dir/tmp.contigs.fa`;
-
-
-
