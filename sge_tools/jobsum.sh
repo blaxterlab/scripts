@@ -3,13 +3,11 @@
 qacct -j $1 > /tmp/$1.acct
 
 # search for lines that show the cpu time
-#                       replace multiple spaces with a single space
-#                                   split fields on space and take the second field
-#                                                    add up the numbers and print the total as a message
-grep cpu /tmp/$1.acct | tr -s ' ' | cut -d ' ' -f2 | awk '{s+=$1} END {print "Total CPU time : " s " sec"}'
+#                       add up the numbers and print the total as a message
+grep cpu /tmp/$1.acct | awk '{s+=$2} END {print "Total CPU time : " s " sec"}'
 
-#                                                    add up the numbers and divide by the number of lines (NR)
-grep cpu /tmp/$1.acct | tr -s ' ' | cut -d ' ' -f2 | awk '{s+=$1} END {print "mean CPU time : " s/NR " sec"}'
+#                       add up the numbers and divide by the number of lines (NR)
+grep cpu /tmp/$1.acct | awk '{s+=$2} END {print "mean CPU time : " s/NR " sec"}'
 
 
 # ideally we want the max and min CPU time to be similar for efficient cluster use
